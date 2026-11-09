@@ -1,0 +1,32 @@
+Учебный пример двустороннего WebSocket-чата на Java и Spring Boot.
+
+Компоненты:
+- `WebSocketConfiguration.java` регистрирует endpoint `/ws`.
+- `ChatWebSocketHandler.java` обрабатывает подключение, входящие текстовые сообщения, отключение и рассылку всем клиентам.
+- `src/main/resources/static/index.html` — простой браузерный чат, использующий нативный WebSocket API.
+- История последних 50 сообщений и подключения хранятся в оперативной памяти; БД и STOMP нет.
+- Сборка: Gradle Kotlin DSL (`build.gradle.kts`), Java 17, Spring Boot 3.4.3.
+
+Запуск из корня (нужны JDK 17+ и Gradle 8.x):
+
+```bash
+gradle bootRun
+```
+
+Открой http://localhost:8080 в нескольких вкладках, отправь текст — он появится у всех подключённых клиентов.
+
+Проверка из консоли (нужен websocat):
+
+```bash
+websocat ws://localhost:8080/ws
+```
+
+Endpoint: `ws://localhost:8080/ws`. API истории: `GET http://localhost:8080/api/messages`.
+
+Тесты:
+
+```bash
+gradle test
+```
+
+В WebSocket клиент и сервер могут отправлять данные друг другу по постоянному соединению. Для учебного проекта все данные в памяти и исчезают после перезапуска.

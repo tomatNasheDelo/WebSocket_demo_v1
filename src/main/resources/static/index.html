@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WebSocket — мини-чат</title>
+  <style>
+    :root { font-family: system-ui, sans-serif; color: #172033; background: #f3f6fb; }
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    main { width: min(760px, calc(100% - 32px)); margin: 40px auto; }
+    header, form, .status, .messages { padding: 20px; border-radius: 14px; background: #fff; box-shadow: 0 5px 20px #12234412; }
+    header { color: #fff; background: #172554; }
+    h1 { margin: 0 0 8px; }
+    .status { margin: 16px 0; color: #475569; }
+    .online { color: #15803d; }
+    .offline { color: #b91c1c; }
+    .messages { min-height: 260px; max-height: 420px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+    .message { padding: 12px 14px; border-radius: 10px; background: #f1f5f9; overflow-wrap: anywhere; }
+    .message.system { color: #475569; background: #eff6ff; font-size: .9rem; }
+    .message.error { color: #b91c1c; background: #fef2f2; }
+    .message strong { margin-right: 6px; }
+    time { display: block; margin-top: 5px; color: #64748b; font-size: .75rem; }
+    form { margin-top: 16px; display: flex; gap: 10px; }
+    input { flex: 1; min-width: 0; padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; font: inherit; }
+    button { padding: 12px 18px; border: 0; border-radius: 8px; background: #2563eb; color: white; font: inherit; cursor: pointer; }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    @media (max-width: 520px) { form { flex-direction: column; } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Мини-чат на WebSocket</h1>
+    <p>Открой страницу в нескольких вкладках: сообщения передаются в обе стороны по одному соединению.</p>
+  </header>
+  <section class="status" aria-live="polite">Соединение: <strong id="status" class="offline">подключение…</strong></section>
+  <section id="messages" class="messages" aria-live="polite"></section>
+  <form id="chat-form">
+    <input id="text" maxlength="1000" autocomplete="off" placeholder="Напиши сообщение" required>
+    <button id="send" type="submit" disabled>Отправить</button>
+  </form>
+</main>
+<script>
+  const status = document.getElementById('status');
+  const list = document.getElementById('messages');
+  const input = document.getElementById('text');
+  const sendButton = document.getElementById('send');
+  let socket;
+  let reconnectDelay = 1000;
+  let manuallyClosed = false;
+
+  function render(item) {
+    const row = document.createElement('article');
+    row.className = `message ${item.type === 'system' ? 'system' : item.type === 'error' ? 'error' : ''}`;
+    const heading = document.createElement('strong');
+    heading.textContent = item.sender + ':';
+    const text = document.createElement('span');
+    text.textContent = ' ' + item.text;
+    row.append(heading, text);
+    if (item.sentAt) {
+      const time = document.createElement('time');
+      time.textContent = new Date(item.sentAt).toLocaleTimeString('ru-RU');
+      row.append(time);
+    }
+    list.append(row);
+    list.scrollTop = list.scrollHeight;
+  }
+
+  function connect() {
+    const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    socket = new WebSocket(`${protocol}//${location.host}/ws`);
+    socket.addEventListener('open', () => {
+      status.textContent = 'подключено';
+      status.className = 'online';
+      sendButton.disabled = false;
+      reconnectDelay = 1000;
+    });
+    socket.addEventListener('message', (event) => {
+      try { render(JSON.parse(event.data)); } catch { console.error('Некорректное сообщение WebSocket', event.data); }
+    });
+    socket.addEventListener('close', () => {
+      sendButton.disabled = true;
+      if (manuallyClosed) return;
+      status.textContent = 'соединение потеряно, переподключение…';
+      status.className = 'offline';
+      window.setTimeout(connect, reconnectDelay);
+      reconnectDelay = Math.min(reconnectDelay * 2, 10000);
+    });
+    socket.addEventListener('error', () => socket.close());
+  }
+
+  document.getElementById('chat-form').addEventListener('submit', (event) => {
+    event.preventDefault();
+    const text = input.value.trim();
+    if (!text || !socket || socket.readyState !== WebSocket.OPEN) return;
+    socket.send(text);
+    input.value = '';
+    input.focus();
+  });
+
+  window.addEventListener('beforeunload', () => {
+    manuallyClosed = true;
+    socket?.close();
+  });
+  connect();
+</script>
+</body>
+</html>
